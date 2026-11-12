@@ -207,10 +207,8 @@ function cleanApps(input, existing = []) {
     if (!name) throw new Error(`App ${i + 1} needs a name`);
     let parsed;
     try { parsed = parseSigmaUrl(a.url); } catch (err) { throw new Error(`${name}: ${err.message}`); }
+    // A page/element app whose link has no id just renders the URL as given.
     const mode = APP_MODES.includes(a.mode) ? a.mode : (parsed.pathMode || 'workbook');
-    if (mode !== 'workbook' && !parsed.nodeId) {
-      throw new Error(`${name}: a single ${mode} needs a link that includes the ${mode} id — select it in Sigma and copy the URL`);
-    }
     const keep = existing.find((x) => x.id === a.id);
     return {
       id: keep ? keep.id : newId('a_'),

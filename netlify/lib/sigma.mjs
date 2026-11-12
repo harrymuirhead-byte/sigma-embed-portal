@@ -76,37 +76,37 @@ export function accountTypeFor(permissions) {
     : ACCESS_LEVELS[permissions.accessLevel].accountType;
 }
 
-// Only workbook URLs in this org are signable. The embed secret is org-scoped
-// anyway, but pinning the host and org stops a typo (or a pasted link from
-// another org) from silently producing a broken embed.
+// Any host, org or path is accepted (production, staging, regional, custom
+// domains). The only rule is http(s), since the URL becomes an iframe src.
+// An embed still only renders in the org that issued CLIENT_ID.
 //
-// SIGMA_APP_HOST and SIGMA_ORG each take a comma-separated list. Hosts default
-// to production and staging; an embed only works where CLIENT_ID was issued.
-const DEFAULT_APP_HOSTS = ['app.sigmacomputing.com', 'staging.sigmacomputing.io'];
-const envList = (name) => (process.env[name] || '').split(',').map((s) => s.trim().replace(/^\/+|\/+$/g, '')).filter(Boolean);
-const orText = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}` : list[0]);
-
-// Returns { base, nodeId, pathMode } where base is the workbook URL (keeping any /tag/
-// or /edit segment) and nodeId is the page or element the link pointed at,
-// from either a :nodeId parameter or a /page/ or /element/ path (pathMode).
+// Returns { base, nodeId, pathMode }. For a recognisable Sigma workbook/report
+// link, base keeps any /tag/ or /edit segment and nodeId is the page or element
+// it pointed at (from /page/, /element/ or :nodeId). Any other URL is used as
+// entered, minus Sigma's own :params, which are rebuilt at signing time.
 export function parseSigmaUrl(raw) {
-  const orgs = envList('SIGMA_ORG');
-  const hosts = envList('SIGMA_APP_HOST').map((h) => h.replace(/^https?:\/\//, '').toLowerCase());
-  if (!hosts.length) hosts.push(...DEFAULT_APP_HOSTS);
+  let text = String(raw || '').trim();
+  if (!text) throw new Error('Enter a URL');
+  // A link pasted without its scheme (staging.sigmacomputing.io/…) gets https://.
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text) && !/^(javascript|data|vbscript|blob|file|about):/i.test(text)) {
+    text = `https://${text.replace(/^\/+/, '')}`;
+  }
   let u;
-  try { u = new URL(String(raw).trim()); } catch { throw new Error('Workbook URL is not a valid URL'); }
-  if (u.protocol !== 'https:' || !hosts.includes(u.host)) throw new Error(`Workbook URL must be on ${orText(hosts.map((h) => `https://${h}`))}`);
-  if (orgs.length && !orgs.some((org) => u.pathname.startsWith(`/${org}/`))) throw new Error(`Workbook URL must belong to the ${orText(orgs)} org`);
+  try { u = new URL(text); } catch { throw new Error('That URL could not be read'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('URL must start with https://');
+
+  const param = u.search.match(/[?&]:nodeId=([^&]+)/);
+  const fromParam = param ? decodeURIComponent(param[1]) : null;
+  const clean = (id) => (id && NODE_RE.test(id) ? id : null);
 
   const m = u.pathname.replace(/\/+$/, '').match(/^(\/[^/]+\/(?:workbook|report)\/[^/]+(?:\/tag\/[^/]+)?(?:\/edit)?)(?:\/(page|element)\/([^/]+))?$/);
-  if (!m) throw new Error('URL must point at a Sigma workbook, page or element');
+  if (m) return { base: `${u.origin}${m[1]}`, nodeId: clean(m[3] || fromParam), pathMode: m[2] || null };
 
-  // Anything else on the link (a pasted :jwt, :embed, menu flags) is rebuilt
-  // from the permission settings at signing time.
-  const param = u.search.match(/[?&]:nodeId=([^&]+)/);
-  const nodeId = m[3] || (param ? decodeURIComponent(param[1]) : null);
-  if (nodeId && !NODE_RE.test(nodeId)) throw new Error('The page or element id in that URL looks malformed');
-  return { base: `${u.origin}${m[1]}`, nodeId: nodeId || null, pathMode: m[2] || null };
+  // Keep the URL's own query (minus :jwt, :embed, :nodeId …) so nothing the
+  // user pasted is lost.
+  const rest = u.search.replace(/^\?/, '').split('&').filter((p) => p && !p.startsWith(':'));
+  const path = u.pathname.replace(/\/+$/, '');
+  return { base: `${u.origin}${path}${rest.length ? `?${rest.join('&')}` : ''}`, nodeId: clean(fromParam), pathMode: null };
 }
 
 const NODE_RE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -117,7 +117,7 @@ export const APP_MODES = ['workbook', 'page', 'element'];
 export function appEmbedBase(app) {
   if (app.mode === 'page' && app.nodeId) return `${app.base}/page/${app.nodeId}`;
   if (app.mode === 'element' && app.nodeId) return `${app.base}/element/${app.nodeId}`;
-  return app.nodeId ? `${app.base}?:nodeId=${app.nodeId}` : app.base;
+  return app.nodeId ? `${app.base}${app.base.includes('?') ? '&' : '?'}:nodeId=${app.nodeId}` : app.base;
 }
 
 // `identity` is the resolved user: who Sigma signs in, with which account type

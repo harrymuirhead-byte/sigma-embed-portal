@@ -315,7 +315,7 @@
           <button class="btn btn-ghost btn-danger icon-btn" type="button" data-remove title="Remove app" aria-label="Remove app">${ICON.trash}</button>
         </span>
         <div class="wide url-row">
-          <input class="input" data-f="url" type="url" placeholder="https://app.sigmacomputing.com/your-org/workbook/…" value="${esc(a.url || '')}" aria-label="Sigma URL" autocomplete="off" spellcheck="false">
+          <input class="input" data-f="url" type="text" inputmode="url" placeholder="https://app.sigmacomputing.com/… or https://staging.sigmacomputing.io/…" value="${esc(a.url || '')}" aria-label="Sigma URL" autocomplete="off" spellcheck="false">
           <button class="btn" type="button" data-browse${catalogOn ? '' : ' hidden'}>Browse Sigma</button>
         </div>
         <input class="input wide" data-f="description" type="text" placeholder="Short description shown in the launcher (optional)" value="${esc(a.description || '')}" aria-label="Description">

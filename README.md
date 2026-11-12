@@ -25,7 +25,6 @@ that lives in your site's Netlify Blobs.
    |---|---|
    | `CLIENT_ID` | The embed Client ID from step 1 |
    | `EMBED_SECRET` | The embed secret from step 1 |
-   | `SIGMA_ORG` | Your org slug — the first path segment of a workbook URL, e.g. `my-org` in `https://app.sigmacomputing.com/my-org/workbook/…` or `https://staging.sigmacomputing.io/my-org/workbook/…` |
    | `ADMIN_USERNAME` | Your admin console username, e.g. `admin` |
    | `ADMIN_PASSWORD` | Your admin console password (12+ characters) |
 
@@ -43,7 +42,6 @@ deploy time.
 
 | Variable | Purpose |
 |---|---|
-| `SIGMA_APP_HOST` | Comma-separated Sigma app hosts that workbook URLs may use. Default: `app.sigmacomputing.com,staging.sigmacomputing.io`. Set it to pin one host, or to add another |
 | `SIGMA_API_CLIENT_ID` / `SIGMA_API_CLIENT_SECRET` | Turns on **Browse Sigma** pickers. Use an API (not embed) credential owned by a View-only user |
 | `SIGMA_API_BASE` | Sigma REST API base for your cloud, default `https://api.sigmacomputing.com` |
 | `PICKER_FOLDERS` | Comma-separated folder paths to narrow the workbook picker |
@@ -55,10 +53,9 @@ deploy time.
 - **"Invalid kid parameter"** — `CLIENT_ID` isn't an active *embed* Client ID
   in the org your workbook URLs point at (an API client ID won't work, nor
   one that was deleted or rotated). Fix the value and redeploy.
-- **"Workbook URL must belong to the … org"** — `SIGMA_ORG` doesn't match
-  the URL you pasted. It takes a comma-separated list if you need more than one.
-- **Staging (`staging.sigmacomputing.io`)** — staging URLs are accepted out of
-  the box, but the embed credentials must be created in that staging org.
+- **Staging or any other host** — the app URL field accepts any https link
+  (production, `staging.sigmacomputing.io`, regional hosts). The embed
+  credentials must be created in the org the URL points at.
   Production credentials won't sign staging embeds, and vice versa.
 - **"Admin password is not configured"** — `ADMIN_PASSWORD` is missing or
   under 12 characters.
@@ -74,7 +71,6 @@ npm install
 netlify login && netlify init
 netlify env:set CLIENT_ID <client-id>
 netlify env:set EMBED_SECRET <secret>
-netlify env:set SIGMA_ORG <org-slug>
 netlify env:set ADMIN_USERNAME admin
 netlify env:set ADMIN_PASSWORD '<password>'
 netlify deploy --prod
