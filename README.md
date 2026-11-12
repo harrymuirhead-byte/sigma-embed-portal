@@ -25,7 +25,7 @@ that lives in your site's Netlify Blobs.
    |---|---|
    | `CLIENT_ID` | The embed Client ID from step 1 |
    | `EMBED_SECRET` | The embed secret from step 1 |
-   | `SIGMA_ORG` | Your org slug — the part after `app.sigmacomputing.com/` in a workbook URL |
+   | `SIGMA_ORG` | Your org slug — the first path segment of a workbook URL, e.g. `my-org` in `https://app.sigmacomputing.com/my-org/workbook/…` or `https://staging.sigmacomputing.io/my-org/workbook/…` |
    | `ADMIN_USERNAME` | Your admin console username, e.g. `admin` |
    | `ADMIN_PASSWORD` | Your admin console password (12+ characters) |
 
@@ -43,7 +43,7 @@ deploy time.
 
 | Variable | Purpose |
 |---|---|
-| `SIGMA_APP_HOST` | Sigma app host if not `app.sigmacomputing.com` (e.g. a staging or regional host) |
+| `SIGMA_APP_HOST` | Comma-separated Sigma app hosts that workbook URLs may use. Default: `app.sigmacomputing.com,staging.sigmacomputing.io`. Set it to pin one host, or to add another |
 | `SIGMA_API_CLIENT_ID` / `SIGMA_API_CLIENT_SECRET` | Turns on **Browse Sigma** pickers. Use an API (not embed) credential owned by a View-only user |
 | `SIGMA_API_BASE` | Sigma REST API base for your cloud, default `https://api.sigmacomputing.com` |
 | `PICKER_FOLDERS` | Comma-separated folder paths to narrow the workbook picker |
@@ -56,7 +56,10 @@ deploy time.
   in the org your workbook URLs point at (an API client ID won't work, nor
   one that was deleted or rotated). Fix the value and redeploy.
 - **"Workbook URL must belong to the … org"** — `SIGMA_ORG` doesn't match
-  the URL you pasted.
+  the URL you pasted. It takes a comma-separated list if you need more than one.
+- **Staging (`staging.sigmacomputing.io`)** — staging URLs are accepted out of
+  the box, but the embed credentials must be created in that staging org.
+  Production credentials won't sign staging embeds, and vice versa.
 - **"Admin password is not configured"** — `ADMIN_PASSWORD` is missing or
   under 12 characters.
 - **Embed loads but says no access** — share the workbook with the team set

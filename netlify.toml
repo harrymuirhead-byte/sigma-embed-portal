@@ -10,7 +10,7 @@
 [template.environment]
   CLIENT_ID = "Sigma embed Client ID (Administration → Developer access → Embed credentials)"
   EMBED_SECRET = "Sigma embed secret for that Client ID"
-  SIGMA_ORG = "Your Sigma org slug, the part after app.sigmacomputing.com/ in workbook URLs"
+  SIGMA_ORG = "Your Sigma org slug, the first part of the path in workbook URLs (e.g. my-org in app.sigmacomputing.com/my-org/… or staging.sigmacomputing.io/my-org/…)"
   ADMIN_USERNAME = "Username for the admin console (e.g. admin)"
   ADMIN_PASSWORD = "Password for the admin console, at least 12 characters"
 
