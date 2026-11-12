@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin console · Sigma embed portal</title>
+<link rel="icon" href="assets/img/sigma-logo.svg">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ---------- Manage view ---------- */
+  .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr); }
+  .list-pane { background: var(--white); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .list-head { display: flex; align-items: center; gap: 8px; padding: 20px 20px 12px; }
+  .list-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .list-head .count { color: var(--mute); font-size: 13px; }
+  .list-head .btn { margin-left: auto; }
+  .search { margin: 0 20px 12px; height: 36px; padding: 0 12px; border: 1px solid var(--input-border); border-radius: var(--r-sm); background: var(--white); }
+  .search:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(26,112,241,.18); }
+  .tenant-list { list-style: none; margin: 0; padding: 0 10px 16px; overflow: auto; flex: 1; }
+  .tenant-item { display: flex; align-items: center; gap: 4px; border-radius: var(--r-md); }
+  .tenant-item.selected { background: var(--blue-tint); }
+  .tenant-item:not(.selected):hover { background: var(--surface); }
+  .tenant-select {
+    flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center;
+    padding: 10px 6px 10px 10px; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: var(--r-md);
+  }
+  .tenant-select:focus-visible { outline: none; box-shadow: var(--focus); }
+  .tenant-select .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tenant-select .sub { grid-column: 2; font-size: 12px; color: var(--slate); display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .tenant-select .sub span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tenant-open { width: 32px; height: 32px; margin-right: 6px; padding: 0; flex: none; }
+  .list-empty { padding: 24px 20px; color: var(--slate); }
+
+  .detail-pane { overflow: auto; min-height: 0; }
+  .detail { max-width: 920px; margin: 0 auto; padding: 32px 32px 0; }
+  .detail-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .detail-head .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-hover); }
+  .detail-head h1 { margin: 4px 0 6px; font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -0.015em; }
+  .detail-head .meta { color: var(--slate); font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .detail-head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px; margin-bottom: 16px; }
+  .card > header { margin-bottom: 18px; }
+  .card h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .card > header p { margin: 0; color: var(--slate); }
+
+  .levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .level { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); cursor: pointer; transition: border-color 120ms, box-shadow 120ms, background 120ms; }
+  .level:hover { border-color: #C9D7F5; }
+  .level input { position: absolute; opacity: 0; pointer-events: none; }
+  .level .lt { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .level .lt svg { width: 18px; height: 18px; color: var(--blue); flex: none; }
+  .level .acct { font-family: var(--mono); font-size: 11px; color: var(--slate); }
+  .level .ld { font-size: 12.5px; color: var(--graphite); line-height: 1.45; }
+  .level:has(input:checked) { border-color: var(--blue); background: var(--blue-tint); box-shadow: inset 0 0 0 1px var(--blue); }
+  .level:has(input:focus-visible) { box-shadow: var(--focus); }
+  .custom-acct { margin-top: 12px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label, .field .lbl { font-size: 13px; font-weight: 500; color: var(--graphite); }
+  .field .hint { font-size: 12px; color: var(--slate); }
+  .input {
+    height: 40px; padding: 0 12px; border: 1px solid var(--input-border); border-radius: var(--r-sm); background: var(--white); width: 100%;
+  }
+  textarea.input { height: auto; min-height: 76px; padding: 10px 12px; font-family: var(--mono); font-size: 13px; resize: vertical; }
+  select.input { padding-right: 32px; }
+  .input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(26,112,241,.18); }
+  .input.mask { -webkit-text-security: disc; text-security: disc; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  .switches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; margin-top: 20px; border-top: 1px solid var(--line-soft); }
+  .switch-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+  .switch-row .st { flex: 1; min-width: 0; }
+  .switch-row .st b { display: block; font-weight: 500; }
+  .switch-row .st code { font-family: var(--mono); font-size: 11px; color: var(--slate); }
+  .switch {
+    appearance: none; -webkit-appearance: none; width: 36px; height: 20px; border-radius: 999px; background: #CFCFD6;
+    position: relative; cursor: pointer; flex: none; margin: 0; transition: background 120ms;
+  }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 120ms; }
+  .switch:checked { background: var(--blue); }
+  .switch:checked::after { transform: translateX(16px); }
+  .switch:focus-visible { outline: none; box-shadow: var(--focus); }
+
+  .access-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); cursor: pointer; }
+  .access-row .st { flex: 1; }
+  .access-row .st b { display: block; font-weight: 500; }
+  .access-row .st span { color: var(--slate); font-size: 13px; }
+
+  .code { margin: 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; color: var(--graphite); }
+  .code .k { color: var(--blue-press); }
+
+  .savebar {
+    position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+    margin: 8px -32px 0; padding: 14px 32px; background: rgba(244,245,247,.92); backdrop-filter: blur(6px); border-top: 1px solid var(--line);
+  }
+  .savebar .note { flex: 1; color: var(--slate); font-size: 13px; }
+  .savebar .note.dirty { color: var(--amber); font-weight: 500; }
+  .form-error { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--r-md); background: var(--danger-tint); color: var(--danger); }
+
+  .card-head-row { display: flex; align-items: flex-start; gap: 16px; }
+  .card-head-row > div { flex: 1; min-width: 0; }
+  .card h3 .count { font-weight: 400; color: var(--mute); font-size: 15px; }
+  .preview-as { width: auto; max-width: 240px; height: 36px; flex: none; }
+
+  /* ---------- Users ---------- */
+  .users { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-soft); }
+  .users:empty { display: none; }
+  .user-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--blue-tint); color: var(--blue-press); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
+  .user-row.off .avatar { background: var(--surface); color: var(--mute); }
+  .user-main { min-width: 0; }
+  .user-main .un { font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .user-main .ue { font-size: 12.5px; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-main .attrs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--graphite); }
+  .user-access { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .user-access small { font-size: 11px; color: var(--mute); }
+  .user-actions { display: flex; gap: 2px; }
+  .icon-btn { width: 32px; height: 32px; padding: 0; }
+  .users-note, .users-empty { margin: 0; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface); color: var(--slate); }
+
+  /* ---------- Dialog ---------- */
+  .dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: var(--r-lg); box-shadow: 0 20px 48px rgba(17,17,20,.18), 0 4px 8px rgba(17,17,20,.06); color: var(--ink); }
+  .dialog::backdrop { background: rgba(17, 17, 20, 0.4); }
+  .dialog form { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+  .dialog-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 24px 12px; }
+  .dialog-head > div { flex: 1; }
+  .dialog-head .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-hover); }
+  .dialog-head h2 { margin: 2px 0 0; font-size: 22px; font-weight: 500; }
+  .dialog-x { width: 36px; padding: 0; }
+  .dialog-body { padding: 4px 24px 16px; overflow: auto; }
+  .dialog-body .form-error { margin: 0; }
+  .dialog-body .access-row { margin-top: 0; }
+  .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px; border-top: 1px solid var(--line); background: var(--paper); }
+
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; height: 100%; padding: 40px 16px; color: var(--slate); }
+  .empty h2 { margin: 0; color: var(--ink); font-size: 22px; font-weight: 500; }
+
+  /* ---------- Embed view ---------- */
+  .embed-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .embed-bar { display: flex; align-items: center; gap: 10px; padding: 10px 20px; background: var(--white); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .embed-bar select { width: auto; min-width: 180px; height: 36px; }
+  .embed-bar .as { color: var(--slate); font-size: 13px; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .embed-bar .as code { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+
+  /* ---------- Top navigation ---------- */
+  .topnav { display: flex; gap: 4px; margin-left: 12px; }
+  .topnav-tab { height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--slate); font-weight: 500; cursor: pointer; }
+  .topnav-tab:hover { background: var(--surface); color: var(--ink); }
+  .topnav-tab[aria-current="page"] { background: var(--blue-tint); color: var(--blue-press); }
+  .topnav-tab:focus-visible { outline: none; box-shadow: var(--focus); }
+
+  /* ---------- Access end ---------- */
+  .ends-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 6px 16px; align-items: end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  .ends-row .hint { font-size: 12px; color: var(--slate); padding-bottom: 10px; }
+  .ends-row .hint.warn, .hint.warn { color: var(--danger); font-weight: 500; }
+  .field .lbl .count { font-weight: 400; color: var(--mute); }
+
+  /* ---------- Apps editor ---------- */
+  .apps { list-style: none; margin: 6px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: app; }
+  .app-row { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px; display: grid; grid-template-columns: 36px 150px minmax(0, 1fr) 170px auto; gap: 8px; align-items: center; background: var(--white); }
+  .app-row .app-ic { width: 36px; height: 36px; border-radius: 9px; background: var(--blue-tint); color: var(--blue-press); display: flex; align-items: center; justify-content: center; }
+  .app-row .app-ic svg { width: 18px; height: 18px; }
+  .app-row .wide { grid-column: 2 / -1; }
+  .app-row .app-actions { display: flex; gap: 2px; }
+  .app-row .input { height: 36px; }
+  .app-row .app-hint { grid-column: 2 / -1; font-size: 12px; color: var(--slate); margin-top: -2px; }
+  .app-row .app-hint.warn { color: var(--danger); }
+
+  /* ---------- Users: access end + links ---------- */
+  .user-main .uends { font-size: 12px; color: var(--slate); margin-top: 2px; }
+  .user-main .uends.warn { color: var(--danger); font-weight: 500; }
+  .user-main .uends.soon { color: var(--amber); font-weight: 500; }
+
+  /* ---------- Links dialog ---------- */
+  .dialog-form { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+  .dialog-lead { margin: 0; color: var(--graphite); }
+  .new-link { padding: 14px; border-radius: var(--r-md); background: var(--teal-tint); color: var(--teal-ink); display: flex; flex-direction: column; gap: 8px; }
+  .copy-row { display: flex; gap: 8px; }
+  .copy-row .input { flex: 1; min-width: 0; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .link-single { margin-top: 0; padding-top: 0; border-top: 0; align-self: end; padding-bottom: 6px; }
+  .links-h { margin: 4px 0 8px; font-size: 14px; font-weight: 600; }
+  .links { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-soft); }
+  .links li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .links li .lm { flex: 1; min-width: 0; color: var(--graphite); }
+  .links li .lm small { display: block; color: var(--slate); font-size: 12px; }
+  .links .none { color: var(--slate); }
+  .badge.active { background: var(--teal-tint); color: var(--teal-ink); }
+  .badge.expired, .badge.used, .badge.revoked { background: var(--surface); color: var(--slate); border: 1px solid var(--line); }
+
+  /* ---------- Developer view ---------- */
+  .dev-view, .activity-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .dev-view .embed-bar select { min-width: 150px; }
+  .dev-scroll, .activity-view { overflow: auto; }
+  .dev { max-width: 1040px; margin: 0 auto; padding: 28px 32px 48px; }
+  .dev-head { margin-bottom: 20px; }
+  .dev-head .eyebrow, .activity .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--blue-hover); }
+  .dev-head h1 { margin: 4px 0 8px; font-size: 30px; font-weight: 500; line-height: 1.15; letter-spacing: -0.015em; }
+  .dev-head p { margin: 0; color: var(--graphite); max-width: 760px; }
+  .dev-url .u-base { color: var(--ink); font-weight: 600; }
+  .dev-url .u-jwt { color: var(--blue-press); }
+  .dev-url .u-param { color: var(--teal-ink); }
+  .dev-jwt .j-h { color: #B4351F; }
+  .dev-jwt .j-p { color: #6D3FC0; }
+  .dev-jwt .j-s { color: var(--teal-ink); }
+  .dev-jwt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 16px; margin-top: 16px; }
+  .dev-jwt-grid h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--graphite); }
+  .dev-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+  .dev-jwt-grid .dev-table { margin-top: 0; }
+  .dev-table th, .dev-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+  .dev-table th { font-size: 12px; font-weight: 500; color: var(--slate); background: var(--surface); }
+  .dev-table td:first-child { font-family: var(--mono); font-size: 12px; white-space: nowrap; color: var(--blue-press); }
+  .dev-table td.v { font-family: var(--mono); font-size: 12px; word-break: break-all; color: var(--ink); }
+  .dev-table td.d { color: var(--graphite); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  .tab { height: 36px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--slate); font-weight: 500; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--blue-press); border-bottom-color: var(--blue); }
+  .tab:focus-visible { outline: none; box-shadow: var(--focus); }
+  .dev-dep { margin: 0 0 10px; font-size: 12.5px; color: var(--slate); }
+  .dev-dep code { font-family: var(--mono); }
+  .dev-code { white-space: pre; overflow: auto; word-break: normal; max-height: 520px; }
+
+  /* ---------- Activity ---------- */
+  .activity { max-width: 1200px; width: 100%; margin: 0 auto; padding: 28px 32px 48px; }
+  .activity h1 { margin: 4px 0 6px; font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -0.015em; }
+  .act-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .act-filters .input { width: auto; min-width: 180px; height: 36px; }
+  .act-filters input.input { flex: 1; min-width: 200px; }
+  .act-count { color: var(--slate); font-size: 13px; }
+  .act-card { padding: 0; overflow: auto; }
+  .act-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .act-table th { position: sticky; top: 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--slate); background: var(--surface); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .act-table td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  .act-table tr:last-child td { border-bottom: 0; }
+  .act-table .t { white-space: nowrap; color: var(--graphite); }
+  .act-table .t small { display: block; color: var(--mute); font-size: 11.5px; }
+  .act-table .who small, .act-table .det small { display: block; color: var(--slate); font-size: 12px; }
+  .act-table .det { color: var(--graphite); max-width: 460px; }
+  .act-table .chg { font-family: var(--mono); font-size: 11.5px; color: var(--graphite); }
+  .ev { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .ev.signin { background: var(--teal-tint); color: var(--teal-ink); }
+  .ev.failed { background: var(--danger-tint); color: var(--danger); }
+  .ev.embed { background: var(--blue-tint); color: var(--blue-press); }
+  .ev.admin { background: var(--amber-tint); color: #8A5407; }
+  .act-empty { padding: 28px; text-align: center; color: var(--slate); }
+  .act-more { display: flex; justify-content: center; margin-top: 14px; }
+
+  /* ---------- Sigma picker ---------- */
+  .url-row { display: flex; gap: 8px; }
+  .url-row .input { flex: 1; min-width: 0; }
+  .team-add { margin-top: 6px; }
+  .picker { width: min(720px, calc(100vw - 32px)); }
+  .picker .dialog-body { min-height: 360px; }
+  .picker-bar { display: flex; gap: 8px; align-items: center; }
+  .picker-bar .input { flex: 1; min-width: 0; height: 38px; }
+  .picker-loading { display: flex; justify-content: center; padding: 32px; }
+  .pick-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-soft); }
+  .pick-list > li { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line-soft); }
+  .pick-list .pm { flex: 1; min-width: 0; }
+  .pick-list .pm b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-list .pm small { display: block; font-size: 12px; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-list .pa { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .pick-list .pa .btn { height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .pick-list > li.pick-row-btn { padding: 0; }
+  .pick-list .pick-open { flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 4px; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: var(--r-sm); min-width: 0; }
+  .pick-list .pick-open:hover { background: var(--surface); }
+  .pick-list .pick-open:focus-visible { outline: none; box-shadow: var(--focus); }
+  .pick-list .chev { color: var(--mute); flex: none; }
+  .pick-list .whole { background: var(--blue-tint); border-radius: var(--r-md); border-bottom: 0; margin: 8px 0; padding: 10px 12px; }
+  .pick-list .empty-row { color: var(--slate); padding: 20px 4px; }
+  .picker-note { flex: 1; font-size: 12px; color: var(--slate); }
+
+  /* ---------- Company groups ---------- */
+  .list-head .btn { margin-left: 0; }
+  .list-head h2 + .count { margin-right: auto; }
+  .group-head { list-style: none; margin-top: 6px; }
+  .group-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: var(--r-sm);
+    background: transparent; cursor: pointer; text-align: left; color: var(--slate);
+    font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .group-toggle:hover { background: var(--surface); color: var(--ink); }
+  .group-toggle:focus-visible { outline: none; box-shadow: var(--focus); }
+  .group-toggle svg { width: 14px; height: 14px; flex: none; transition: transform 140ms ease; }
+  .group-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .group-toggle .gn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .group-toggle .gc { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--mute); }
+  .group-hidden { padding: 2px 10px 8px 32px; font-size: 12px; color: var(--mute); list-style: none; }
+
+  @media (max-width: 1100px) {
+    .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 860px) {
+    body { height: auto; min-height: 100vh; }
+    .layout { grid-template-columns: 1fr; }
+    .list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+    .tenant-list { max-height: 260px; }
+    .detail { padding: 24px 16px 0; }
+    .savebar { margin: 8px -16px 0; padding: 12px 16px; }
+    .grid2, .switches { grid-template-columns: 1fr; }
+    .embed-view { height: calc(100vh - 60px); }
+    .embed-bar { padding: 10px 16px; }
+    .user-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+    .user-access { grid-column: 2; grid-row: 2; align-items: center; flex-direction: row; flex-wrap: wrap; gap: 4px 8px; }
+    .user-actions { grid-column: 3; grid-row: 1 / span 2; }
+    .app-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+    .app-row .app-icon-select, .app-row .app-mode { grid-column: 2 / -1; }
+    .app-row .app-name { grid-column: 2; grid-row: 1; }
+    .app-row .app-actions { grid-column: 3; grid-row: 1; }
+    .dev-jwt-grid { grid-template-columns: 1fr; }
+    .dev, .activity { padding: 20px 16px 40px; }
+    .dev-view, .activity-view { min-height: calc(100vh - 60px); }
+    .ends-row { grid-template-columns: 1fr; }
+    .ends-row .hint { padding-bottom: 0; }
+    .topnav { margin-left: 0; }
+  }
+  @media (max-width: 520px) {
+    .levels { grid-template-columns: 1fr; }
+    .card { padding: 18px 16px; }
+    .detail-head .actions { margin-left: 0; }
+    .card-head-row { flex-direction: column; }
+    .preview-as { max-width: none; width: 100%; }
+    .dialog-head, .dialog-body, .dialog-foot { padding-left: 16px; padding-right: 16px; }
+    .topbar .title { display: none; }
+    .act-filters .input { width: 100%; }
+    .dev-table td:first-child { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <img class="logo" src="assets/img/sigma-logo.svg" alt="Sigma">
+    <span class="divider" aria-hidden="true"></span>
+    <div class="title">
+      <span class="eyebrow">Embed portal</span>
+      <span class="name">Admin console</span>
+    </div>
+    <nav class="topnav" aria-label="Admin sections">
+      <button class="topnav-tab" type="button" data-nav="companies" aria-current="page">Companies</button>
+      <button class="topnav-tab" type="button" data-nav="activity">Activity</button>
+    </nav>
+    <span class="spacer"></span>
+    <span class="who" id="who"></span>
+    <button class="btn" id="signOut" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H4"/></svg>
+      Sign out
+    </button>
+  </header>
+
+  <!-- ================= Manage view ================= -->
+  <div class="layout" id="manageView">
+    <aside class="list-pane" aria-label="Companies">
+      <div class="list-head">
+        <h2>Companies</h2><span class="count" id="count"></span>
+        <button class="btn btn-ghost icon-btn" type="button" id="groupsToggle" hidden title="Collapse all groups" aria-label="Collapse all groups">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15l5-5 5 5"/><path d="M7 20l5-5 5 5" opacity=".45"/></svg>
+        </button>
+        <button class="btn btn-primary" type="button" id="addBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="Search companies" aria-label="Search companies">
+      <ul class="tenant-list" id="tenantList"></ul>
+    </aside>
+
+    <section class="detail-pane" id="detailPane">
+      <div class="empty" id="emptyState">
+        <div class="spinner" aria-hidden="true" id="listSpinner"></div>
+        <h2 id="emptyTitle" hidden>No companies yet</h2>
+        <p id="emptyBody" hidden>Add a company to give it a sign-in and route it to its Sigma embed.</p>
+      </div>
+
+      <form class="detail" id="editor" hidden novalidate>
+        <div class="detail-head">
+          <div>
+            <div class="eyebrow" id="dEyebrow">Company</div>
+            <h1 id="dName"></h1>
+            <div class="meta" id="dMeta"></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-danger" type="button" id="deleteBtn">Delete</button>
+            <button class="btn btn-primary" type="button" id="openBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>
+              Open embed
+            </button>
+          </div>
+        </div>
+
+        <div class="form-error" id="formError" role="alert" hidden></div>
+
+        <section class="card">
+          <header>
+            <h3>Default access level</h3>
+            <p>The Sigma account type for users set to “Company default”. Individual users can override it under Users. Takes effect at each user’s next sign-in.</p>
+          </header>
+          <div class="levels" role="radiogroup" aria-label="Access level">
+            <label class="level">
+              <input type="radio" name="accessLevel" value="view">
+              <span class="lt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12c1-1.5 5-6 10-6s9 4.5 10 6c-1 1.5-5 6-10 6S3 13.5 2 12z"/><circle cx="12" cy="12" r="3"/></svg>View only</span>
+              <span class="acct">account_type: Viewer</span>
+              <span class="ld">Read dashboards and use filters and controls. No exploring or saving.</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="accessLevel" value="explore">
+              <span class="lt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/></svg>Explore</span>
+              <span class="acct">account_type: Explorer</span>
+              <span class="ld">Adds explore mode: drill down, re-sort, and ask ad-hoc questions of each element.</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="accessLevel" value="build">
+              <span class="lt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>Build</span>
+              <span class="acct">account_type: Creator</span>
+              <span class="ld">Adds Save As and building new workbooks. Editing the original also needs a Can edit grant.</span>
+            </label>
+            <label class="level">
+              <input type="radio" name="accessLevel" value="custom">
+              <span class="lt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Custom</span>
+              <span class="acct">account_type: your choice</span>
+              <span class="ld">Use any other account type defined in your Sigma org.</span>
+            </label>
+          </div>
+          <div class="field custom-acct" id="customAcctField" hidden>
+            <label for="customAccountType">Sigma account type name</label>
+            <input class="input" id="customAccountType" name="customAccountType" type="text" placeholder="e.g. Embed Analyst" autocomplete="off">
+            <span class="hint">Must match an account type in Sigma exactly (case sensitive).</span>
+          </div>
+
+          <label class="access-row">
+            <span class="st"><b>Portal access</b><span id="enabledHint">This company can sign in and load its embed.</span></span>
+            <input class="switch" type="checkbox" role="switch" id="enabled" name="enabled">
+          </label>
+          <div class="ends-row">
+            <div class="field">
+              <label for="accessEndsAt">Access ends</label>
+              <input class="input" id="accessEndsAt" name="accessEndsAt" type="date">
+            </div>
+            <span class="hint" id="accessEndsHint">For a time-boxed proof of value. Leave empty for no end date. Sign-in stops at the end of this day for every user in the company.</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <header>
+            <h3>Embed interface</h3>
+            <p>Embed URL parameters applied every time the embed is signed.</p>
+          </header>
+          <div class="grid2">
+            <div class="field">
+              <label for="menuPosition">Toolbar</label>
+              <select class="input" id="menuPosition" name="menuPosition">
+                <option value="bottom">Bottom</option>
+                <option value="top">Top</option>
+                <option value="none">Hidden</option>
+              </select>
+              <span class="hint">Saved views and Save As live in the toolbar.</span>
+            </div>
+            <div class="field">
+              <label for="sessionLength">Session length</label>
+              <select class="input" id="sessionLength" name="sessionLength">
+                <option value="900">15 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="14400">4 hours</option>
+                <option value="28800">8 hours</option>
+                <option value="86400">24 hours</option>
+              </select>
+              <span class="hint">The portal re-signs before the JWT expires.</span>
+            </div>
+            <div class="field">
+              <label for="theme">Theme</label>
+              <input class="input" id="theme" name="theme" type="text" list="themes" placeholder="Workbook default" autocomplete="off">
+              <datalist id="themes"><option value="Light"><option value="Dark"><option value="Surface"></datalist>
+              <span class="hint">Light, Dark, Surface or a custom org theme name.</span>
+            </div>
+            <div class="field">
+              <label for="lng">Language</label>
+              <input class="input" id="lng" name="lng" type="text" placeholder="Workbook default" autocomplete="off">
+              <span class="hint">A locale code such as fr, de or ja.</span>
+            </div>
+          </div>
+          <div class="switches" id="switches"></div>
+        </section>
+
+        <section class="card">
+          <header>
+            <h3>Apps and embed target</h3>
+            <p>What this company’s users can open, and which Sigma teams they join.</p>
+          </header>
+          <div class="stack">
+            <div class="grid2">
+              <div class="stack">
+                <div class="field">
+                  <label for="dispName">Company name</label>
+                  <input class="input" id="dispName" name="name" type="text" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="group">Group</label>
+                  <input class="input" id="group" name="group" type="text" list="groupOptions" placeholder="e.g. Live prospects, Demos" autocomplete="off">
+                  <datalist id="groupOptions"></datalist>
+                  <span class="hint">Organises the company list in this console only. Collapse a group to hide its companies, e.g. while demoing.</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="teams">Sigma teams</label>
+                <input class="input" id="teams" name="teams" type="text" placeholder="company_team" autocomplete="off" spellcheck="false">
+                <input class="input team-add" id="teamAdd" type="text" list="teamOptions" placeholder="Add a team from Sigma…" autocomplete="off" spellcheck="false" aria-label="Add a team from Sigma" hidden>
+                <datalist id="teamOptions"></datalist>
+                <span class="hint" id="teamsHint">Comma-separated. Each team must exist in Sigma and be shared on the workbook.</span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="lbl">Apps <span class="count" id="appCount"></span></span>
+              <span class="hint">Each app is a whole workbook, a single page or a single element. Users switch between them in a collapsible launcher, in this order; with one app the launcher is hidden. For a page or element, select it in Sigma and copy the URL so it includes <code>:nodeId</code>.</span>
+              <ol class="apps" id="appsList"></ol>
+              <div><button class="btn" type="button" id="addAppBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add app</button></div>
+            </div>
+            <div class="field">
+              <label for="userAttributes">Company user attributes</label>
+              <textarea class="input" id="userAttributes" name="userAttributes" rows="3" placeholder="region=EMEA" spellcheck="false"></textarea>
+              <span class="hint">One <code>attribute=value</code> per line, sent to Sigma for every user. A user’s own attribute with the same name wins. Each attribute must already exist in Sigma (Administration → User attributes) or Sigma refuses the sign-in.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" id="usersCard">
+          <header class="card-head-row">
+            <div>
+              <h3>Users <span class="count" id="userCount"></span></h3>
+              <p>Each user signs in with their own credentials and is signed into Sigma as their own embed user, with their own account type and attributes. Changes save immediately.</p>
+            </div>
+            <button class="btn" type="button" id="addUserBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Add user
+            </button>
+          </header>
+          <p class="users-note" id="usersNote" hidden>Create the company first, then add its users.</p>
+          <ul class="users" id="usersList"></ul>
+        </section>
+
+        <section class="card">
+          <header class="card-head-row">
+            <div>
+              <h3>Signed embed preview</h3>
+              <p>What the next sign-in sends to Sigma with these settings.</p>
+            </div>
+            <select class="input preview-as" id="previewAs" aria-label="Preview as user"></select>
+          </header>
+          <pre class="code" id="preview"></pre>
+        </section>
+
+        <div class="savebar">
+          <span class="note" id="dirtyNote">All changes saved</span>
+          <button class="btn" type="button" id="discardBtn">Discard</button>
+          <button class="btn btn-primary" type="submit" id="saveBtn">Save changes</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- ================= Embed view ================= -->
+  <div class="embed-view" id="embedView" hidden>
+    <div class="embed-bar">
+      <button class="btn btn-ghost" type="button" id="backBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        All companies
+      </button>
+      <select class="input" id="switcher" aria-label="Switch company"></select>
+      <select class="input" id="userSwitcher" aria-label="View as user"></select>
+      <select class="input" id="appSwitcher" aria-label="Switch app"></select>
+      <span class="badge" id="embedBadge"></span>
+      <span class="as" id="embedAs"></span>
+      <button class="btn" type="button" id="devBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>Developer view</button>
+      <button class="btn" type="button" id="editBtn">Edit permissions</button>
+      <button class="btn" type="button" id="reloadBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        Reload
+      </button>
+    </div>
+    <div class="embed-shell">
+      <iframe id="sigmaEmbed" title="Sigma embed" allow="clipboard-write; fullscreen" allowfullscreen style="visibility:hidden"></iframe>
+      <div class="embed-state" id="loadingState">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Signing embed…</p>
+      </div>
+      <div class="embed-state" id="errorState" hidden>
+        <h3>We couldn't load this embed</h3>
+        <p id="errorMessage">Unable to load the embed.</p>
+        <button class="btn btn-primary" type="button" id="retry">Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Developer view ================= -->
+  <div class="dev-view" id="devView" hidden>
+    <div class="embed-bar">
+      <button class="btn btn-ghost" type="button" id="devBackBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back</button>
+      <select class="input" id="devCompany" aria-label="Company"></select>
+      <select class="input" id="devUser" aria-label="User"></select>
+      <select class="input" id="devApp" aria-label="App"></select>
+      <span class="as"></span>
+      <button class="btn" type="button" id="devRegen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Re-sign</button>
+      <button class="btn btn-primary" type="button" id="devOpen">Open embed</button>
+    </div>
+    <div class="dev-scroll">
+      <div class="dev">
+        <div class="dev-head">
+          <div class="eyebrow">Developer view</div>
+          <h1>Everything your backend needs to build this embed</h1>
+          <p>The portal signs a short-lived JWT on the server with the embed secret, appends it to the Sigma URL, and the browser loads that URL in an iframe. This is the live output for <b id="devWho"></b>, with code that produces the same URL.</p>
+        </div>
+        <div class="form-error" id="devError" role="alert" hidden></div>
+
+        <section class="card">
+          <header class="card-head-row">
+            <div><h3>1 · Signed embed URL</h3><p>Valid for <span id="devTtl"></span>. Loading it signs the user in to Sigma; no other credential is involved.</p></div>
+            <button class="btn" type="button" data-copy="devUrlRaw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy URL</button>
+          </header>
+          <pre class="code dev-url" id="devUrl"></pre>
+          <table class="dev-table" id="devParams"></table>
+        </section>
+
+        <section class="card">
+          <header class="card-head-row">
+            <div><h3>2 · The JWT</h3><p>Three base64url parts: header, payload (the claims) and an HS256 signature made with the embed secret, which never leaves your server.</p></div>
+            <button class="btn" type="button" data-copy="devJwtRaw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy JWT</button>
+          </header>
+          <pre class="code dev-jwt" id="devJwt"></pre>
+          <div class="dev-jwt-grid">
+            <div><h4>Header</h4><pre class="code" id="devHeader"></pre></div>
+            <div><h4>Payload</h4><table class="dev-table" id="devClaims"></table></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <header class="card-head-row">
+            <div><h3>3 · Server code</h3><p>Drop-in signing for your backend. Reads <code>SIGMA_CLIENT_ID</code> and <code>SIGMA_EMBED_SECRET</code> from the environment; swap the hard-coded user values for your signed-in user.</p></div>
+            <button class="btn" type="button" data-copy="devCodeRaw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy code</button>
+          </header>
+          <div class="tabs" role="tablist" aria-label="Language">
+            <button class="tab" type="button" role="tab" data-lang="node" aria-selected="true">Node.js</button>
+            <button class="tab" type="button" role="tab" data-lang="python" aria-selected="false">Python</button>
+            <button class="tab" type="button" role="tab" data-lang="java" aria-selected="false">Java</button>
+          </div>
+          <p class="dev-dep" id="devDep"></p>
+          <pre class="code dev-code" id="devCode"></pre>
+        </section>
+
+        <section class="card">
+          <header class="card-head-row">
+            <div><h3>4 · Frontend</h3><p>Fetch the signed URL from your backend for the signed-in user and set it on an iframe. Re-fetch before it expires.</p></div>
+            <button class="btn" type="button" data-copy="devFrontRaw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button>
+          </header>
+          <pre class="code dev-code" id="devFront"></pre>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Activity view ================= -->
+  <div class="activity-view" id="activityView" hidden>
+    <div class="activity">
+      <div class="detail-head">
+        <div>
+          <div class="eyebrow">Governance</div>
+          <h1>Activity</h1>
+          <div class="meta">Sign-ins, embed loads and admin changes from the last 90 days.</div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="actExport">Export CSV</button>
+          <button class="btn" type="button" id="actRefresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Refresh</button>
+        </div>
+      </div>
+      <div class="act-filters">
+        <select class="input" id="actCompany" aria-label="Company"><option value="">All companies</option></select>
+        <select class="input" id="actType" aria-label="Event type">
+          <option value="">All events</option>
+          <option value="signins">Sign-ins</option>
+          <option value="failed">Failed sign-ins</option>
+          <option value="embeds">Embed loads</option>
+          <option value="admin">Admin changes</option>
+        </select>
+        <input class="input" id="actSearch" type="search" placeholder="Filter by user or detail" aria-label="Filter events">
+        <span class="act-count" id="actCount"></span>
+      </div>
+      <div class="card act-card">
+        <table class="act-table">
+          <thead><tr><th>Time</th><th>Event</th><th>Who</th><th>Company</th><th>Details</th></tr></thead>
+          <tbody id="actRows"></tbody>
+        </table>
+        <div class="act-empty" id="actEmpty" hidden>No activity matches these filters.</div>
+      </div>
+      <div class="act-more"><button class="btn" type="button" id="actMore" hidden>Load more</button></div>
+    </div>
+  </div>
+
+  <!-- ================= Sigma picker dialog ================= -->
+  <dialog class="dialog picker" id="pickerDialog" aria-labelledby="pickerTitle">
+    <div class="dialog-form">
+      <header class="dialog-head">
+        <div>
+          <div class="eyebrow">Choose from Sigma</div>
+          <h2 id="pickerTitle">Workbooks</h2>
+        </div>
+        <button class="btn btn-ghost dialog-x" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
+      <div class="dialog-body stack">
+        <div class="picker-bar">
+          <button class="btn btn-ghost" type="button" id="pickerBack" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg><span id="pickerBackLabel">All workbooks</span></button>
+          <input class="input" id="pickerSearch" type="search" placeholder="Search workbooks or folders" aria-label="Search">
+          <button class="btn btn-ghost icon-btn" type="button" id="pickerRefresh" title="Refresh from Sigma" aria-label="Refresh from Sigma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+        </div>
+        <div class="form-error" id="pickerError" role="alert" hidden></div>
+        <div class="picker-loading" id="pickerLoading" hidden><div class="spinner" aria-hidden="true"></div></div>
+        <ul class="pick-list" id="pickerList"></ul>
+      </div>
+      <footer class="dialog-foot">
+        <span class="picker-note" id="pickerNote">Read from the Sigma API with a view-only key.</span>
+        <button class="btn" type="button" data-close>Cancel</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- ================= Sign-in links dialog ================= -->
+  <dialog class="dialog" id="linksDialog" aria-labelledby="linksTitle">
+    <div class="dialog-form">
+      <header class="dialog-head">
+        <div>
+          <div class="eyebrow" id="linksCompany"></div>
+          <h2 id="linksTitle">Sign-in links</h2>
+        </div>
+        <button class="btn btn-ghost dialog-x" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </header>
+      <div class="dialog-body stack">
+        <p class="dialog-lead">A sign-in link logs this user straight in, without a password. Share it with the prospect; it stops working when it expires, is used (if single-use), is revoked, or their access ends.</p>
+        <div class="form-error" id="linkError" role="alert" hidden></div>
+        <div class="new-link" id="newLink" hidden>
+          <b>New link — copy it now. It can’t be shown again.</b>
+          <div class="copy-row">
+            <input class="input mono" id="newLinkUrl" type="text" readonly aria-label="New sign-in link">
+            <button class="btn btn-primary" type="button" data-copy-input="newLinkUrl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="linkExpiry">Link expires</label>
+            <select class="input" id="linkExpiry">
+              <option value="3600">In 1 hour</option>
+              <option value="86400">In 24 hours</option>
+              <option value="604800" selected>In 7 days</option>
+              <option value="2592000">In 30 days</option>
+              <option value="access-end">When their access ends</option>
+            </select>
+          </div>
+          <label class="access-row link-single">
+            <span class="st"><b>Single use</b><span>Stops working after the first sign-in.</span></span>
+            <input class="switch" type="checkbox" role="switch" id="linkSingle">
+          </label>
+        </div>
+        <div><button class="btn btn-primary" type="button" id="linkCreate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Create link</button></div>
+        <div>
+          <h4 class="links-h">Links for this user</h4>
+          <ul class="links" id="linksList"></ul>
+        </div>
+      </div>
+      <footer class="dialog-foot">
+        <button class="btn" type="button" data-close>Done</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- ================= User dialog ================= -->
+  <dialog class="dialog" id="userDialog" aria-labelledby="userDialogTitle">
+    <form id="userForm" novalidate>
+      <header class="dialog-head">
+        <div>
+          <div class="eyebrow" id="userDialogCompany"></div>
+          <h2 id="userDialogTitle">Add user</h2>
+        </div>
+        <button class="btn btn-ghost dialog-x" type="button" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="dialog-body stack">
+        <div class="form-error" id="userError" role="alert" hidden></div>
+        <div class="grid2">
+          <div class="field">
+            <label for="uFirst">First name</label>
+            <input class="input" id="uFirst" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="uLast">Last name</label>
+            <input class="input" id="uLast" type="text" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="uUsername">Username</label>
+            <input class="input" id="uUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="name@company.com">
+            <span class="hint">What they type on the sign-in page.</span>
+          </div>
+          <div class="field">
+            <label for="uMethod">Sign-in method</label>
+            <select class="input" id="uMethod">
+              <option value="password">Password</option>
+              <option value="link">Sign-in links only</option>
+            </select>
+            <span class="hint" id="uMethodHint">Sign-in links can be added for any user from the Users list.</span>
+          </div>
+          <div class="field" id="uPasswordField">
+            <label for="uPassword" id="uPasswordLabel">Password</label>
+            <input class="input mask" id="uPassword" type="text" autocomplete="off" spellcheck="false">
+            <span class="hint">At least 8 characters.</span>
+          </div>
+          <div class="field">
+            <label for="uEnds">Access ends</label>
+            <input class="input" id="uEnds" type="date">
+            <span class="hint" id="uEndsHint">Leave empty for no end date.</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="uEmail">Embed user email</label>
+          <input class="input" id="uEmail" type="text" autocomplete="off" spellcheck="false" placeholder="jane@company.com">
+          <span class="hint">Sent as the JWT <code>sub</code> — Sigma’s identity for this user. Must be unique and contain no underscores.</span>
+        </div>
+        <div class="field">
+          <label for="uAccess">Access level</label>
+          <select class="input" id="uAccess">
+            <option value="inherit" id="uInheritOption">Company default</option>
+            <option value="view">View only · Viewer</option>
+            <option value="explore">Explore · Explorer</option>
+            <option value="build">Build · Creator</option>
+            <option value="custom">Custom account type</option>
+          </select>
+        </div>
+        <div class="field" id="uCustomField" hidden>
+          <label for="uCustom">Sigma account type name</label>
+          <input class="input" id="uCustom" type="text" autocomplete="off" placeholder="e.g. Embed Analyst">
+          <span class="hint">Must match an account type in Sigma exactly (case sensitive).</span>
+        </div>
+        <div class="field">
+          <label for="uAttrs">User attributes</label>
+          <textarea class="input" id="uAttrs" rows="3" placeholder="region=EMEA" spellcheck="false"></textarea>
+          <span class="hint" id="uAttrsHint">One <code>attribute=value</code> per line. Overrides the company value of the same name. The attribute must exist in Sigma first, or Sigma refuses the sign-in.</span>
+        </div>
+        <label class="access-row">
+          <span class="st"><b>Can sign in</b><span>Turn off to pause this user without deleting them.</span></span>
+          <input class="switch" type="checkbox" role="switch" id="uEnabled">
+        </label>
+      </div>
+      <footer class="dialog-foot">
+        <button class="btn" type="button" data-close>Cancel</button>
+        <button class="btn btn-primary" type="submit" id="uSave">Add user</button>
+      </footer>
+    </form>
+  </dialog>
+
+<script src="js/session.js"></script>
+<script src="js/embed.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/devview.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

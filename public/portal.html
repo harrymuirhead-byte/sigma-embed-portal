@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sigma embed portal</title>
+<link rel="icon" href="assets/img/sigma-logo.svg">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; }
+  .portal-body { flex: 1; min-height: 0; display: flex; position: relative; }
+
+  .until { font-size: 12px; color: var(--slate); white-space: nowrap; }
+  .until.soon { color: var(--amber); font-weight: 500; }
+
+  /* ---------- App launcher ---------- */
+  .launcher {
+    flex: none; width: 248px; display: flex; flex-direction: column; min-height: 0;
+    background: var(--white); border-right: 1px solid var(--line); transition: width 160ms ease;
+  }
+  .launcher-head { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 18px; flex: none; }
+  .launcher-title { flex: 1; font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--slate); white-space: nowrap; overflow: hidden; }
+  .launcher-toggle {
+    width: 32px; height: 32px; flex: none; display: flex; align-items: center; justify-content: center;
+    border: 0; border-radius: var(--r-sm); background: transparent; color: var(--slate); cursor: pointer;
+  }
+  .launcher-toggle:hover { background: var(--blue-tint); color: var(--blue-press); }
+  .launcher-toggle:focus-visible { outline: none; box-shadow: var(--focus); }
+  .launcher-toggle svg { width: 18px; height: 18px; transition: transform 160ms ease; }
+  .app-list { list-style: none; margin: 0; padding: 0 10px 16px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .app-item {
+    position: relative; width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px;
+    border: 0; border-radius: var(--r-md); background: transparent; text-align: left; cursor: pointer; color: var(--graphite);
+  }
+  .app-item:hover { background: var(--surface); color: var(--ink); }
+  .app-item:focus-visible { outline: none; box-shadow: var(--focus); }
+  .app-item .ic { width: 34px; height: 34px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--surface); color: var(--graphite); }
+  .app-item .ic svg { width: 18px; height: 18px; }
+  .app-item .tx { min-width: 0; display: flex; flex-direction: column; }
+  .app-item .nm { font-weight: 500; font-size: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-item .ds { font-size: 12px; color: var(--slate); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-item[aria-current="page"] { background: var(--blue-tint); color: var(--blue-press); }
+  .app-item[aria-current="page"] .ic { background: var(--blue); color: var(--white); }
+  .app-item[aria-current="page"]::before { content: ''; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--blue); }
+
+  /* Collapsed: an icon rail, names on hover via title */
+  .launcher.collapsed { width: 64px; }
+  .launcher.collapsed .launcher-head { padding: 0 16px; justify-content: center; }
+  .launcher.collapsed .launcher-title, .launcher.collapsed .app-item .tx { display: none; }
+  .launcher.collapsed .launcher-toggle svg { transform: rotate(180deg); }
+  .launcher.collapsed .app-list { padding: 0 10px 16px; }
+  .launcher.collapsed .app-item { justify-content: center; padding: 7px 0; }
+
+  /* Phones: the rail stays put and the expanded launcher floats over the embed */
+  @media (max-width: 720px) {
+    .launcher:not(.collapsed) { position: absolute; z-index: 10; top: 0; bottom: 0; left: 0; box-shadow: var(--shadow-3); }
+    .portal-body.has-launcher .embed-shell { margin-left: 64px; }
+    .until { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <img class="logo" src="assets/img/sigma-logo.svg" alt="Sigma">
+    <span class="divider" aria-hidden="true"></span>
+    <div class="title">
+      <span class="eyebrow">Embed portal</span>
+      <span class="name" id="companyName">Loading…</span>
+    </div>
+    <span class="badge" id="accessBadge" hidden></span>
+    <span class="spacer"></span>
+    <span class="until" id="until" hidden></span>
+    <span class="who" id="who"></span>
+    <button class="btn" id="signOut" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H4"/></svg>
+      Sign out
+    </button>
+  </header>
+
+  <div class="portal-body" id="portalBody">
+    <aside class="launcher" id="launcher" aria-label="Apps" hidden>
+      <div class="launcher-head">
+        <span class="launcher-title">Your apps</span>
+        <button class="launcher-toggle" id="launcherToggle" type="button" aria-expanded="true" aria-controls="appList" aria-label="Collapse apps" title="Collapse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
+        </button>
+      </div>
+      <ul class="app-list" id="appList"></ul>
+    </aside>
+
+    <div class="embed-shell">
+      <iframe id="sigmaEmbed" title="Sigma embed" allow="clipboard-write; fullscreen" allowfullscreen style="visibility:hidden"></iframe>
+      <div class="embed-state" id="loadingState">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Loading your apps…</p>
+      </div>
+      <div class="embed-state" id="errorState" hidden>
+        <h3>We couldn't load this embed</h3>
+        <p id="errorMessage">Unable to load the embed.</p>
+        <button class="btn btn-primary" type="button" id="retry">Try again</button>
+      </div>
+    </div>
+  </div>
+
+<script src="js/session.js"></script>
+<script src="js/embed.js"></script>
+<script src="js/icons.js"></script>
+<script>
+(function () {
+  const session = Portal.require('tenant');
+  if (!session) return;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const BADGE = { 'View only': 'view', 'Explore': 'explore', 'Build': 'build' };
+  const COLLAPSE_KEY = 'sigma_portal_launcher_collapsed';
+
+  $('who').textContent = session.username;
+  $('signOut').addEventListener('click', Portal.signOut);
+
+  // ---------- Launcher ----------
+  const launcher = $('launcher');
+  const narrow = () => matchMedia('(max-width: 720px)').matches;
+  let collapsed;
+  try { collapsed = localStorage.getItem(COLLAPSE_KEY); } catch { collapsed = null; }
+  setCollapsed(collapsed === null ? narrow() : collapsed === '1', false);
+
+  function setCollapsed(value, remember = true) {
+    launcher.classList.toggle('collapsed', value);
+    const t = $('launcherToggle');
+    t.setAttribute('aria-expanded', String(!value));
+    t.setAttribute('aria-label', value ? 'Expand apps' : 'Collapse apps');
+    t.title = value ? 'Expand' : 'Collapse';
+    // On phones the expanded launcher is a temporary overlay; don't remember it.
+    if (remember && !narrow()) { try { localStorage.setItem(COLLAPSE_KEY, value ? '1' : '0'); } catch {} }
+  }
+  $('launcherToggle').addEventListener('click', () => setCollapsed(!launcher.classList.contains('collapsed')));
+
+  let apps = [];
+  let currentApp = new URLSearchParams(location.hash.slice(1)).get('app');
+
+  function renderApps() {
+    const multi = apps.length > 1;
+    launcher.hidden = !multi;
+    $('portalBody').classList.toggle('has-launcher', multi);
+    $('appList').innerHTML = apps.map((a) => `
+      <li>
+        <button class="app-item" type="button" data-app="${esc(a.id)}" title="${esc(a.name)}"${a.id === currentApp ? ' aria-current="page"' : ''}>
+          <span class="ic">${AppIcons.svg(a.icon)}</span>
+          <span class="tx"><span class="nm">${esc(a.name)}</span>${a.description ? `<span class="ds">${esc(a.description)}</span>` : ''}</span>
+        </button>
+      </li>`).join('');
+  }
+
+  $('appList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-app]');
+    if (!btn) return;
+    if (narrow()) setCollapsed(true, false);
+    if (btn.dataset.app === currentApp) return;
+    currentApp = btn.dataset.app;
+    history.replaceState(null, '', '#app=' + encodeURIComponent(currentApp));
+    renderApps();
+    frame.load();
+  });
+
+  // ---------- Embed ----------
+  const frame = EmbedFrame({
+    iframe: $('sigmaEmbed'),
+    loading: $('loadingState'),
+    error: $('errorState'),
+    errorMessage: $('errorMessage'),
+    query: () => (currentApp ? { app: currentApp } : {}),
+    onSigned: (data) => {
+      const t = data.tenant;
+      apps = data.apps || [];
+      currentApp = data.app ? data.app.id : null;
+      renderApps();
+      $('companyName').textContent = t.name;
+      document.title = (data.app && apps.length > 1 ? data.app.name + ' · ' : '') + t.name + ' · Sigma embed portal';
+      $('accessBadge').textContent = t.accessLabel;
+      $('accessBadge').className = 'badge ' + (BADGE[t.accessLabel] || 'custom');
+      $('accessBadge').hidden = false;
+
+      const until = $('until');
+      if (t.accessEndsAt) {
+        const end = new Date(t.accessEndsAt);
+        const days = (end - Date.now()) / 86400e3;
+        until.textContent = 'Access until ' + end.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+        until.classList.toggle('soon', days < 7);
+        until.hidden = false;
+      } else {
+        until.hidden = true;
+      }
+    },
+  });
+  $('retry').addEventListener('click', () => frame.load());
+  frame.load();
+})();
+</script>
+</body>
+</html>

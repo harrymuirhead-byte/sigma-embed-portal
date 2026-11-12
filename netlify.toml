@@ -1,0 +1,34 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Asked for by the "Deploy to Netlify" button. Optional settings are listed in
+# the README and can be added later under Project configuration → Environment variables.
+[template.environment]
+  CLIENT_ID = "Sigma embed Client ID (Administration → Developer access → Embed credentials)"
+  EMBED_SECRET = "Sigma embed secret for that Client ID"
+  SIGMA_ORG = "Your Sigma org slug, the part after app.sigmacomputing.com/ in workbook URLs"
+  ADMIN_USERNAME = "Username for the admin console (e.g. admin)"
+  ADMIN_PASSWORD = "Password for the admin console, at least 12 characters"
+
+# Clean page URLs: /admin and /portal serve the matching .html file.
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/portal"
+  to = "/portal.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Robots-Tag = "noindex, nofollow"
